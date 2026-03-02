@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs'); 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
@@ -167,6 +168,102 @@ app.get('/api/categories', (req, res) => {
       return;
     }
     res.json(rows.map(row => row.category));
+  });
+});
+
+// Add this debug endpoint to help diagnose issues
+app.get('/api/debug', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  
+  const dbPath = process.env.DB_PATH || path.join(__dirname, 'db', 'inventory.db');
+  
+  // Check if database file exists
+  let dbExists = false;
+  let dbStats = null;
+  try {
+    dbExists = fs.existsSync(dbPath);
+    if (dbExists) {
+      dbStats = fs.statSync(dbPath);
+    }
+  } catch (err) {
+    console.error('Error checking database file:', err);
+  }
+
+  // Get database tables
+  const sqlite3 = require('sqlite3').verbose();
+  const tempDb = new sqlite3.Database(dbPath, sqlite3.OPEN_READONLY, (err) => {
+    if (err) {
+      console.error('Error opening database for debug:', err);
+    }
+  });
+
+  tempDb.all("SELECT name FROM sqlite_master WHERE type='table'", (err, tables) => {
+    // Get product count if products table exists
+    if (!err && tables && tables.some(t => t.name === 'products')) {
+      tempDb.get("SELECT COUNT(*) as count FROM products", (countErr, result) => {
+        const debug = {
+          server: {
+            status: 'running',
+            timestamp: new Date().toISOString(),
+            environment: process.env.NODE_ENV || 'development'
+          },
+          database: {
+            path: dbPath,
+            exists: dbExists,
+            fileSize: dbStats ? dbStats.size : null,
+            lastModified: dbStats ? dbStats.mtime : null,
+            tables: tables,
+            productCount: result ? result.count : 0,
+            error: err ? err.message : null
+          },
+          environment: {
+            node_env: process.env.NODE_ENV,
+            port: process.env.PORT,
+            cors_origin: process.env.CORS_ORIGIN,
+            db_path: process.env.DB_PATH
+          },
+          system: {
+            cwd: process.cwd(),
+            dirname: __dirname,
+            platform: process.platform,
+            node_version: process.version
+          }
+        };
+        res.json(debug);
+        tempDb.close();
+      });
+    } else {
+      const debug = {
+        server: {
+          status: 'running',
+          timestamp: new Date().toISOString(),
+          environment: process.env.NODE_ENV || 'development'
+        },
+        database: {
+          path: dbPath,
+          exists: dbExists,
+          fileSize: dbStats ? dbStats.size : null,
+          lastModified: dbStats ? dbStats.mtime : null,
+          tables: tables || [],
+          error: err ? err.message : 'No tables found'
+        },
+        environment: {
+          node_env: process.env.NODE_ENV,
+          port: process.env.PORT,
+          cors_origin: process.env.CORS_ORIGIN,
+          db_path: process.env.DB_PATH
+        },
+        system: {
+          cwd: process.cwd(),
+          dirname: __dirname,
+          platform: process.platform,
+          node_version: process.version
+        }
+      };
+      res.json(debug);
+      tempDb.close();
+    }
   });
 });
 
