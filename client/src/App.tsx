@@ -12,6 +12,17 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+// Add this near the top of your App component, right after the useState lines
+useEffect(() => {
+  console.log('🔍 Checking environment variables:');
+  // @ts-ignore
+  console.log('REACT_APP_API_URL from build:', window._env_ || process.env.REACT_APP_API_URL);
+  console.log('Full config:', { 
+    hasReactAppApiUrl: !!process.env.REACT_APP_API_URL,
+    nodeEnv: process.env.NODE_ENV 
+  });
+}, []);
+
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const fetchProducts = useCallback(async () => {
