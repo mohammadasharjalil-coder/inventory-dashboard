@@ -37,6 +37,53 @@ const db = new sqlite3.Database(dbPath, (err) => {
   }
 });
 
+// After database connection, ensure tables exist
+db.serialize(() => {
+  db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='products'", (err, table) => {
+    if (err) {
+      console.error("Error checking database:", err);
+    } else if (!table) {
+      console.log("Database empty. Running setup...");
+      
+      // Create products table
+      db.run(`
+        CREATE TABLE products (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          stock INTEGER NOT NULL,
+          price DECIMAL(10,2) NOT NULL,
+          image_url TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // Insert sample data
+      const sampleProducts = [
+        ['Laptop Pro', 'Electronics', 12, 1299.99, 'https://placehold.co/400x300/2563eb/white?text=Laptop+Pro'],
+        ['Wireless Mouse', 'Electronics', 3, 29.99, 'https://placehold.co/400x300/16a34a/white?text=Wireless+Mouse'],
+        ['Office Desk', 'Furniture', 2, 449.99, 'https://placehold.co/400x300/9333ea/white?text=Office+Desk'],
+        ['Coffee Maker', 'Appliances', 8, 89.99, 'https://placehold.co/400x300/dc2626/white?text=Coffee+Maker'],
+        ['Notebook Set', 'Stationery', 15, 12.99, 'https://placehold.co/400x300/eab308/white?text=Notebook+Set'],
+        ['Desk Chair', 'Furniture', 4, 299.99, 'https://placehold.co/400x300/0891b2/white?text=Desk+Chair'],
+        ['Monitor 27"', 'Electronics', 6, 349.99, 'https://placehold.co/400x300/7c3aed/white?text=27"+Monitor']
+      ];
+
+      const stmt = db.prepare('INSERT INTO products (name, category, stock, price, image_url) VALUES (?, ?, ?, ?, ?)');
+      
+      sampleProducts.forEach(product => {
+        stmt.run(product[0], product[1], product[2], product[3], product[4]);
+      });
+      
+      stmt.finalize();
+      console.log("Database initialized with sample data!");
+    } else {
+      console.log("Database already exists with tables");
+    }
+  });
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ 
